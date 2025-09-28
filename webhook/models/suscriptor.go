@@ -1,8 +1,8 @@
 package models
 
 type SuscribeRequest struct {
-	Name        string `json:"name" binding:"required"`
-	CallbackURL string `json:"callback_url" binding:"required"`
+	Name        string `json:"name"`
+	CallbackURL string `json:"callback_url"`
 }
 
 type SuscribeResponse struct {
