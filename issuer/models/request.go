@@ -1,11 +1,11 @@
 ﻿package models
 
 type IssueRequest struct {
-	Name            string `json:"name" binding:"required"`
-	Lastname        string `json:"lastname" binding:"required"`
-	BirthDate       string `json:"birthDate" binding:"required"`
-	CountryCode     string `json:"countryCode" binding:"required"`
-	CardType        string `json:"cardType" binding:"required"`
-	SuscriptorToken string `json:"suscriptorToken" binding:"required"`
-	RequestUUID     string `json:"requestUUID" binding:"required"`
+	Name            string `json:"name"`
+	Lastname        string `json:"last_name"`
+	BirthDate       string `json:"birth_date"`
+	CountryCode     string `json:"country_code"`
+	CardType        string `json:"card_type"`
+	SuscriptorToken string `json:"suscriptor_token"`
+	RequestUUID     string `json:"request_uuid"`
 }

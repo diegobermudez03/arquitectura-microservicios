@@ -8,6 +8,7 @@ type IssuedCard struct {
 	PAN        string `json:"pan"`
 	CVV        string `json:"cvv"`
 	ExpiryDate string `json:"expiry_date"`
+	CardType   string `json:"card_type"`
 }
 
 type WebhookResponse struct {

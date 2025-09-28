@@ -7,7 +7,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -22,7 +21,21 @@ var countryMinAge = map[string]int{
 	"DE": 16,
 }
 
-func IssueCard(c *gin.Context) {
+var cardTypes = map[string]bool{
+	"debit":   true,
+	"credit":  true,
+	"prepaid": true,
+}
+
+type Handlers struct {
+	webhookURL string
+}
+
+func NewHandlers(webhookURL string) *Handlers {
+	return &Handlers{webhookURL: webhookURL}
+}
+
+func (h *Handlers) IssueCard(c *gin.Context) {
 	var req models.IssueRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Printf("Error binding JSON: %v", err)
@@ -30,14 +43,15 @@ func IssueCard(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Processing card issue request for: %s %s", req.Name, req.Lastname)
+	log.Printf("Received card issue request for: %s %s", req.Name, req.Lastname)
 
 	// Validate country code
 	minAge, exists := countryMinAge[req.CountryCode]
 	if !exists {
 		log.Printf("Country not eligible: %s", req.CountryCode)
-		sendWebhookResponse(req, &models.DeclineReason{Reason: "Country not eligible"}, nil)
-		c.JSON(http.StatusOK, gin.H{"status": "declined", "reason": "Country not eligible"})
+		// Send webhook asynchronously for decline
+		go h.processCardIssueAsync(req, &models.DeclineReason{Reason: "Country not eligible"})
+		c.JSON(http.StatusOK, gin.H{"status": "request_received", "message": "Request is being processed"})
 		return
 	}
 
@@ -52,8 +66,35 @@ func IssueCard(c *gin.Context) {
 	age := int(time.Since(birthDate).Hours() / 24 / 365)
 	if age < minAge {
 		log.Printf("User not eligible due to age: %d < %d", age, minAge)
-		sendWebhookResponse(req, &models.DeclineReason{Reason: "User not eligible due to age"}, nil)
-		c.JSON(http.StatusOK, gin.H{"status": "declined", "reason": "User not eligible due to age"})
+		// Send webhook asynchronously for decline
+		go h.processCardIssueAsync(req, &models.DeclineReason{Reason: "User not eligible due to age"})
+		c.JSON(http.StatusOK, gin.H{"status": "request_received", "message": "Request is being processed"})
+		return
+	}
+
+	// Validate card type
+	if _, ok := cardTypes[req.CardType]; !ok {
+		log.Printf("Card type not eligible: %s", req.CardType)
+		// Send webhook asynchronously for decline
+		go h.processCardIssueAsync(req, &models.DeclineReason{Reason: "Card type not eligible"})
+		c.JSON(http.StatusOK, gin.H{"status": "request_received", "message": "Request is being processed"})
+		return
+	}
+
+	// Start async processing for successful case
+	go h.processCardIssueAsync(req, nil)
+
+	// Return immediately
+	c.JSON(http.StatusOK, gin.H{"status": "request_received", "message": "Request is being processed"})
+}
+
+func (h *Handlers) processCardIssueAsync(req models.IssueRequest, declineReason *models.DeclineReason) {
+	log.Printf("Starting async processing for request: %s", req.RequestUUID)
+
+	// If we already have a decline reason, send it immediately
+	if declineReason != nil {
+		log.Printf("Sending decline webhook for request: %s", req.RequestUUID)
+		h.sendWebhookResponse(req, declineReason, nil)
 		return
 	}
 
@@ -70,16 +111,13 @@ func IssueCard(c *gin.Context) {
 
 	log.Printf("Card generated successfully for %s %s", req.Name, req.Lastname)
 
-	// Simulate processing time
+	// Simulate processing time (3 seconds)
+	log.Printf("Simulating processing time for request: %s", req.RequestUUID)
 	time.Sleep(3 * time.Second)
 
 	// Send webhook response
-	sendWebhookResponse(req, nil, issuedCard)
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"card":   issuedCard,
-	})
+	log.Printf("Sending success webhook for request: %s", req.RequestUUID)
+	h.sendWebhookResponse(req, nil, issuedCard)
 }
 
 func generatePAN() string {
@@ -110,9 +148,8 @@ func generateExpiryDate() string {
 	return expiry.Format("2006-01-02")
 }
 
-func sendWebhookResponse(req models.IssueRequest, declineReason *models.DeclineReason, issuedCard *models.IssuedCard) {
-	webhookURL := os.Getenv("WEBHOOK_URL")
-	if webhookURL == "" {
+func (h *Handlers) sendWebhookResponse(req models.IssueRequest, declineReason *models.DeclineReason, issuedCard *models.IssuedCard) {
+	if h.webhookURL == "" {
 		log.Printf("WEBHOOK_URL not set, skipping webhook call")
 		return
 	}
@@ -130,7 +167,8 @@ func sendWebhookResponse(req models.IssueRequest, declineReason *models.DeclineR
 		return
 	}
 
-	resp, err := http.Post(webhookURL, "application/json", bytes.NewBuffer(jsonData))
+	log.Printf("Sending webhook to: %s", h.webhookURL)
+	resp, err := http.Post(h.webhookURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Printf("Error sending webhook: %v", err)
 		return
