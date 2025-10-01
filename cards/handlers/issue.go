@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 
@@ -33,6 +34,7 @@ func (h *IssueHandler) Issue(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Received card issue request for: %v", req)
 	ctx := context.Background()
 
 	user, err := h.redisService.GetUser(ctx, req.UserToken)
@@ -54,8 +56,9 @@ func (h *IssueHandler) Issue(c *gin.Context) {
 	}
 
 	requestData := models.RequestData{
-		User:     *user,
-		CardType: req.CardType,
+		User:      *user,
+		CardType:  req.CardType,
+		UserToken: req.UserToken,
 	}
 
 	if err := h.redisService.StoreRequest(ctx, requestUUID, requestData); err != nil {
@@ -63,6 +66,7 @@ func (h *IssueHandler) Issue(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Storing request in Redis for user UUID and request UUID: %s and %s", req.UserToken, requestUUID)
 	webhookURL := os.Getenv("WEBHOOK_URL")
 	if webhookURL == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "WEBHOOK_URL not configured"})

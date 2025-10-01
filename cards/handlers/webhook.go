@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 
@@ -32,6 +33,7 @@ func (h *WebhookHandler) Webhook(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Received webhook event request for: %s", webhookEvent.Data.RequestUUID)
 	ctx := context.Background()
 	response := webhookEvent.Data
 
@@ -41,7 +43,7 @@ func (h *WebhookHandler) Webhook(c *gin.Context) {
 		return
 	}
 
-	userToken := findUserTokenByRequest(ctx, h.redisService, response.RequestUUID)
+	userToken := requestData.UserToken
 	if userToken == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User token not found"})
 		return
@@ -103,27 +105,4 @@ func (h *WebhookHandler) Webhook(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "processed"})
-}
-
-func findUserTokenByRequest(ctx context.Context, redisService *internal.RedisService, requestUUID string) string {
-	requestData, err := redisService.GetRequest(ctx, requestUUID)
-	if err != nil {
-		return ""
-	}
-
-	userToken := ""
-	keys, err := redisService.GetAllUserKeys(ctx)
-	if err != nil {
-		return ""
-	}
-
-	for _, key := range keys {
-		user, err := redisService.GetUser(ctx, key[5:])
-		if err == nil && user.Name == requestData.User.Name && user.Lastname == requestData.User.Lastname {
-			userToken = key[5:]
-			break
-		}
-	}
-
-	return userToken
 }

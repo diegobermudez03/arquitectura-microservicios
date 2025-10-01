@@ -19,6 +19,7 @@ type IssueCardRequest struct {
 
 // RequestData represents the data stored in Redis for a request
 type RequestData struct {
-	User     User   `json:"user"`
-	CardType string `json:"card_type"`
+	User      User   `json:"user"`
+	CardType  string `json:"card_type"`
+	UserToken string `json:"user_token"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net/http"
 
 	"cards/internal"
@@ -30,6 +31,8 @@ func (h *RegisterHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	log.Printf("Received register request for: %v", req)
 
 	token, err := generateRandomToken()
 	if err != nil {
