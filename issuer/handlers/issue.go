@@ -18,7 +18,8 @@ import (
 var countryMinAge = map[string]int{
 	"US": 18,
 	"CO": 14,
-	"DE": 16,
+	"MX": 16,
+	"CA" : 20,
 }
 
 var cardTypes = map[string]bool{
@@ -43,7 +44,7 @@ func (h *Handlers) IssueCard(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Received card issue request for: %s %s", req.Name, req.Lastname)
+	log.Printf("Received issue  request for: %v", req)
 
 	// Validate country code
 	minAge, exists := countryMinAge[req.CountryCode]
@@ -90,6 +91,8 @@ func (h *Handlers) IssueCard(c *gin.Context) {
 
 func (h *Handlers) processCardIssueAsync(req models.IssueRequest, declineReason *models.DeclineReason) {
 	log.Printf("Starting async processing for request: %s", req.RequestUUID)
+	// Simulate processing time (6 seconds)
+	time.Sleep(6 * time.Second)
 
 	// If we already have a decline reason, send it immediately
 	if declineReason != nil {
@@ -107,14 +110,10 @@ func (h *Handlers) processCardIssueAsync(req models.IssueRequest, declineReason 
 		PAN:        pan,
 		CVV:        cvv,
 		ExpiryDate: expiryDate,
+		CardType:   req.CardType,
 	}
 
 	log.Printf("Card generated successfully for %s %s", req.Name, req.Lastname)
-
-	// Simulate processing time (3 seconds)
-	log.Printf("Simulating processing time for request: %s", req.RequestUUID)
-	time.Sleep(3 * time.Second)
-
 	// Send webhook response
 	log.Printf("Sending success webhook for request: %s", req.RequestUUID)
 	h.sendWebhookResponse(req, nil, issuedCard)

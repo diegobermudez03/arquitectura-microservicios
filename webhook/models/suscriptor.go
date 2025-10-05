@@ -8,8 +8,3 @@ type SuscribeRequest struct {
 type SuscribeResponse struct {
 	SuscriptorToken string `json:"suscriptor_token"`
 }
-
-type ResponseRequest struct {
-	RequestUUID     string `json:"request_uuid"`
-	SuscriptorToken string `json:"suscriptor_token"`
-}

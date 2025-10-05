@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"log"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"cards/internal"
 	"cards/models"
@@ -32,6 +34,12 @@ func (h *RegisterHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Validate that ID contains only digits
+	if !isDigitsOnly(req.CitizenID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID must contain only digits"})
+		return
+	}
+
 	log.Printf("Received register request for: %v", req)
 
 	token, err := generateRandomToken()
@@ -45,6 +53,7 @@ func (h *RegisterHandler) Register(c *gin.Context) {
 		Lastname:    req.Lastname,
 		BirthDate:   req.BirthDate,
 		CountryCode: req.CountryCode,
+		CitizenID:   req.CitizenID, // Social Security ID
 	}
 
 	ctx := context.Background()
@@ -77,4 +86,17 @@ func generateRandomToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+// isDigitsOnly validates that the string contains only digits
+func isDigitsOnly(s string) bool {
+	// Remove any whitespace
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+
+	// Use regex to check if string contains only digits
+	matched, _ := regexp.MatchString(`^\d+$`, s)
+	return matched
 }

@@ -53,6 +53,7 @@ func (p *PostgresService) StoreUser(userToken string, user models.User) (*models
 		Lastname:    user.Lastname,
 		BirthDate:   user.BirthDate,
 		CountryCode: user.CountryCode,
+		CitizenID:   user.CitizenID, // Social Security ID
 	}
 
 	result := p.db.Create(userRecord)
@@ -125,6 +126,84 @@ func (p *PostgresService) CreateFailedAttemptRecord(
 func (p *PostgresService) SendNotification(userToken string, response models.IssuerResponse) error {
 	fmt.Printf("Sending notification for user %s with status %s\n", userToken, response.Status)
 	return nil
+}
+
+// FullCardResult represents the joined result from users and cards tables
+type FullCardResult struct {
+	// User fields
+	UserID          string `gorm:"column:user_id"`
+	UserToken       string `gorm:"column:user_token"`
+	UserName        string `gorm:"column:name"`
+	UserLastname    string `gorm:"column:lastname"`
+	UserBirthDate   string `gorm:"column:birth_date"`
+	UserCountryCode string `gorm:"column:country_code"`
+	UserSocialID    string `gorm:"column:citizen_id"`
+	UserCreatedAt   string `gorm:"column:user_created_at"`
+
+	// Card fields
+	CardID        string `gorm:"column:card_id"`
+	CardPAN       string `gorm:"column:pan"`
+	CardCVV       string `gorm:"column:cvv"`
+	CardExpiry    string `gorm:"column:expiry_date"`
+	CardType      string `gorm:"column:card_type"`
+	CardStatus    string `gorm:"column:card_status"`
+	CardCreatedAt string `gorm:"column:card_created_at"`
+}
+
+// GetCardsByCitizenID retrieves all users and their cards for a specific citizen ID
+func (p *PostgresService) GetCardsByCitizenID(citizenID string) ([]models.FullCard, error) {
+	var results []FullCardResult
+
+	// Single query with JOIN
+	result := p.db.Table("users").
+		Select(`
+			users.id as user_id,
+			users.user_token,
+			users.name,
+			users.lastname,
+			users.birth_date,
+			users.country_code,
+			users.citizen_id,
+			users.created_at as user_created_at,
+			issued_cards.id as card_id,
+			issued_cards.pan,
+			issued_cards.cvv,
+			issued_cards.expiry_date,
+			issued_cards.card_type,
+			issued_cards.status as card_status,
+			issued_cards.created_at as card_created_at
+		`).
+		Joins("LEFT JOIN issued_cards ON users.id = issued_cards.user_id").
+		Where("users.citizen_id = ?", citizenID).
+		Find(&results)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	// Convert to FullCard models
+	fullCards := make([]models.FullCard, len(results))
+	for i, result := range results {
+		fullCards[i] = models.FullCard{
+			UserID:          result.UserID,
+			UserToken:       result.UserToken,
+			UserName:        result.UserName,
+			UserLastname:    result.UserLastname,
+			UserBirthDate:   result.UserBirthDate,
+			UserCountryCode: result.UserCountryCode,
+			UserSocialID:    result.UserSocialID,
+			UserCreatedAt:   result.UserCreatedAt,
+			CardID:          result.CardID,
+			CardPAN:         result.CardPAN,
+			CardCVV:         result.CardCVV,
+			CardExpiry:      result.CardExpiry,
+			CardType:        result.CardType,
+			CardStatus:      result.CardStatus,
+			CardCreatedAt:   result.CardCreatedAt,
+		}
+	}
+
+	return fullCards, nil
 }
 
 // GetDB returns the GORM database instance for advanced queries if needed

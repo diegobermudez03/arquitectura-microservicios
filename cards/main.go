@@ -32,6 +32,7 @@ func main() {
 	if err := redisClient.Ping(redisClient.Context()).Err(); err != nil {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
+	log.Println("Redis client succesful ping")
 
 	// Initialize PostgreSQL service with auto-migration
 	postgresService := internal.NewPostgresService()
@@ -44,6 +45,7 @@ func main() {
 	registerHandler := handlers.NewRegisterHandler(redisService, postgresService)
 	issueHandler := handlers.NewIssueHandler(redisService, postgresService)
 	webhookHandler := handlers.NewWebhookHandler(redisService, postgresService)
+	cardsHandler := handlers.NewCardsHandler(postgresService)
 
 	// Setup router
 	router := gin.Default()
@@ -63,6 +65,7 @@ func main() {
 	v1.POST("/register", registerHandler.Register)
 	v1.POST("/issue", issueHandler.Issue)
 	v1.POST("/webhook", webhookHandler.Webhook)
+	v1.GET("/:citizen_id/cards", cardsHandler.GetCardsByCitizenID)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {

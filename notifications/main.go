@@ -2,25 +2,48 @@
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"notifications/models"
+	"os"
+	"sync"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: .env file not found: %v", err)
+	}
+
+	// Get port from environment or use default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 	// Initialize Gin router
 	r := gin.Default()
+
+	// Configure CORS to allow all connections
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"*"},
+		ExposeHeaders:    []string{"*"},
+		AllowCredentials: false,
+	}))
 
 	// Register routes
 	registerRoutes(r)
 
 	// Start server
-	log.Println("Starting Notifications Service on :8080")
-	if err := r.Run(":8080"); err != nil {
+	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
+	fmt.Println("running on port", port)
 }
 
 // registerRoutes sets up all the API routes
@@ -123,5 +146,65 @@ func SendHandler(c *gin.Context) {
 			"status":  "error",
 			"message": "User not connected or notification failed",
 		})
+	}
+}
+
+// ConnectionManager manages active SSE connections
+type ConnectionManager struct {
+	connections map[string]chan models.IssuerResponse
+	mutex       sync.RWMutex
+}
+
+// Global connection manager instance
+var connManager = &ConnectionManager{
+	connections: make(map[string]chan models.IssuerResponse),
+}
+
+// AddConnection adds a new connection for a user
+func (cm *ConnectionManager) AddConnection(userToken string) chan models.IssuerResponse {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+
+	// Close existing connection if any
+	if existingChan, exists := cm.connections[userToken]; exists {
+		close(existingChan)
+	}
+
+	// Create new channel for this user
+	ch := make(chan models.IssuerResponse, 1)
+	cm.connections[userToken] = ch
+	log.Printf("Connection added for user: %s", userToken)
+	return ch
+}
+
+// SendNotification sends a notification to a user
+func (cm *ConnectionManager) SendNotification(userToken string, response models.IssuerResponse) bool {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+
+	if ch, exists := cm.connections[userToken]; exists {
+		select {
+		case ch <- response:
+			log.Printf("Notification sent to user: %s", userToken)
+			return true
+		default:
+			log.Printf("Failed to send notification to user: %s (channel full)", userToken)
+			return false
+		}
+	}
+
+	log.Printf("No active connection found for user: %s", userToken)
+	return false
+}
+
+// RemoveConnection removes a connection for a user
+func (cm *ConnectionManager) RemoveConnection(userToken string) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+
+	if ch, exists := cm.connections[userToken]; exists {
+		close(ch)
+		delete(cm.connections, userToken)
+		log.Printf("Connection removed for user: %s", userToken)
 	}
 }
