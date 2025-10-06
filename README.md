@@ -1,6 +1,7 @@
 # Microservices Project
 Deployment: https://cards-webapp-220185652609.europe-west1.run.app/
-This project consists of 5 microservices: 4 Go-based backend services and 1 Flutter web application. All services are containerized with Docker and ready for deployment.
+
+-This project consists of 5 microservices: 4 Go-based backend services and 1 Flutter web application. All services are containerized with Docker and ready for deployment.
 
 ## Services Description
 
